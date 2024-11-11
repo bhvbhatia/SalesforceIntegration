@@ -126,4 +126,54 @@ public with sharing class PS_SalesforceTokenUtils {
       }
     }
   }
+
+  public static Boolean isValid(Salesforce_Config__mdt config) {
+    Boolean isValid = true;
+    if (config.expires_in_time__c < System.now()) {
+      isValid = false;
+    }
+    return isValid;
+  }
+
+  public static Map<String, Object> refreshToken(
+    salesforce_Config__mdt config
+  ) {
+    String orgUrl = config.Environment__c == 'Production'
+      ? 'https://login.salesforce.com'
+      : 'https://test.salesforce.com';
+    String tokenUrl = orgUrl + config.token_Url__c;
+
+    String requestBody =
+      'grant_type=refresh_token&client_id=' +
+      config.client_id__c +
+      '&client_secret=' +
+      config.client_secret__c +
+      '&refresh_token=' +
+      config.refresh_token__c;
+
+    HttpRequest req = PS_CalloutUtils.prepareRequest(
+      tokenUrl,
+      'POST',
+      requestBody,
+      'application/json',
+      'application/x-www-form-urlencoded'
+    );
+    Map<String, Object> fieldWithValuesMap = new Map<String, Object>();
+    try {
+      HttpResponse httpRes = (new Http()).send(req);
+      if (httpRes.getStatusCode() == 200 || httpRes.getStatusCode() == 201) {
+        PS_SalesforceTokenWrapper wrapper = (PS_SalesforceTokenWrapper) System.JSON.deserialize(
+          httpRes.getBody(),
+          PS_SalesforceTokenWrapper.class
+        );
+        fieldWithValuesMap.put('access_token__c', wrapper.access_token);
+        fieldWithValuesMap.put('expires_in_time__c', System.now().addHours(2));
+        //CreateUpdateMetadataUtils.createUpdateMetadata(fullName, label, fieldWithValuesMap);
+      } else {
+      }
+    } catch (System.CalloutException ex) {
+    }
+
+    return fieldWithValuesMap;
+  }
 }
